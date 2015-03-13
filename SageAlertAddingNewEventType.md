@@ -1,0 +1,20 @@
+Here's an outline on the steps necessary to add a new event type to SageAlert.  Submitted patches will definitely **NOT** be accepted if the various classes do not follow the process outlined below.
+
+  * Create a new class for the event that implements the `SageEvent` interface, i.e. `UiConnectedEvent`
+  * In your new event class, create a class constant of type `SageEventMetaData` and name it `EVENT_METADATA`.
+    * This constant should be declared as: `static public final SageEventMetaData EVENT_METADATA = new SageEventMetaData(MyClass.class.getCanonicalName(), "Alert title", "Describe what your alert is for.");`
+      * The first parameter is the full class name for your event, this name must match the fully qualified name of the class it's contained in or the `EventHandlerManager` will get confused.
+      * The second parameter is the title of your alert (it will appear on the Alerts tab of the UI)
+      * The third parameter is a description of what your alert is alerting.  This text will appear in the GUI on the Alerts config tab.
+      * If you do not create this constant then one will be generated for you, but it won't be useful and will definitely not be useful for users.
+  * Create a new subclass of `SageAlertRunnable` (or add this functionality to an already existing one, if appropriate).
+    * This class will be the monitor that polls for and fires your new event type.  Sometimes you can add to an already existing monitor class, if appropriate.  For example, the `UiMonitor` class polls for and fires both the `UiConnectedEvent` and `UiDisconnectedEvent` types; hopefully the link between the two, and why they're put together, is obvious.
+    * SageAlert will automatically create a new thread at startup for this class.
+    * A `SageAlertRunnable` is just like a `java.lang.Runnable` with two additional rules that **MUST** be followed:
+      1. Your `SageAlertRunnable` is only created once at app startup and SageAlert will **NEVER** create and start a second instance of your monitor thread; you are expected to keep the single instance alive and polling for as long as SageAlert is running.
+      1. Once the `keepAlive` flag is set to false by SageAlert you are expected to complete what ever task you were doing cleanly and then immediately die gracefully (i.e. gracefully exit the `run()` method of your class).  Threads are immediately interrupted once the `keepAlive` flag is set to false.  No new task or operation should begin after being interrupted other than those tasks required to complete a graceful shutdown of the thread.
+  * Finally, add the fully qualified name of your new event type to the `event_classes.conf` file in `war/WEB-INF/config/`.  If you do not register the class in this config file then SageAlert will ignore it.  Then, if you created a new `SageAlertRunnable`, add that fully qualified class name to the `monitor_classes.conf` file in the same directory.  Failure to register the monitor class will result in SageAlert ignoring it and not starting the monitor thread for it during app initialization.  Only classes registered in these files will be recognized and honoured by SageAlert.
+
+That's it.  Everything else is handled for you automatically: the config GUI will automatically add your event type to the _Alerts_ tab so users can attach notification servers to it and all the saving of event handlers in the database, etc. is automatically detected and handled for all registered classes.  Complete these steps and you will have added a new event type to SageAlert.  **Remember to test, test, and test again before submitting a patch.**
+
+The `UiConnected*` classes described above actually exist and can be viewed in the source tree to see a complete code example of how to implement a new event type in SageAlert.  The `UiMonitor` thread monitors new UI (extender, placeshifter, and client) connections (and disconnections as well, see `UiDisconnectedEvent`) to the SageTV server and fires an event when a new connection is detected.
